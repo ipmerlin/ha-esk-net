@@ -62,7 +62,7 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-GitHub Actions запускает эти проверки, hassfest и отдельные тесты настройки, повторной авторизации, координатора и выгрузки на Home Assistant 2025.12. Проверка HACS запускается вручную. Собственная неофициальная иконка находится в `brand/icon.png`; её отображение в HA поддерживается начиная с 2026.3. Подробнее: [локальные иконки интеграций](https://developers.home-assistant.io/docs/core/integration/brand_images/).
+GitHub Actions запускает эти проверки, hassfest и отдельные тесты настройки, повторной авторизации, координатора и выгрузки на Home Assistant 2025.12. Проверка HACS запускается вручную. Изображение ЕСК находится в `brand/icon.png` и `brand/logo.png`; его отображение в HA поддерживается начиная с 2026.3. Подробнее: [локальные иконки интеграций](https://developers.home-assistant.io/docs/core/integration/brand_images/).
 
 ## Публикация
 
