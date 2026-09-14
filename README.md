@@ -1,6 +1,6 @@
 # ЕСК — личный кабинет для Home Assistant
 
-Неофициальная интеграция личного кабинета **https://lk.esknet.net**, созданная на основе AppDaemon-скрипта `esk_net.py`. Работает непосредственно в Home Assistant, AppDaemon не нужен.
+Неофициальная интеграция личного кабинета [**https://lk.esknet.net**](https://lk.esknet.net)
 
 ## Возможности
 
