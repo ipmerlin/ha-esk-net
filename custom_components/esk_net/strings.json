@@ -1,0 +1,63 @@
+{
+  "title": "ESK Net",
+  "config": {
+    "step": {
+      "user": {
+        "title": "ESK personal cabinet",
+        "description": "Enter your lk.esknet.net credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate ESK",
+        "description": "Enter current credentials for the same account.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed. Check your username and password.",
+      "cannot_connect": "Cannot connect to the cabinet. Try again later.",
+      "cannot_parse": "Cannot parse the cabinet. The layout may have changed or the site challenge was not resolved."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Credentials updated successfully.",
+      "unique_id_mismatch": "These credentials belong to a different account."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update settings",
+        "description": "Interval from 30 to 1440 minutes. Default: 240 minutes.",
+        "data": {
+          "update_interval": "Update interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Balance"
+      },
+      "days_left": {
+        "name": "Days until blocking"
+      },
+      "tariff": {
+        "name": "Tariff"
+      },
+      "tariff_price": {
+        "name": "Monthly tariff price"
+      },
+      "account": {
+        "name": "Account number"
+      }
+    }
+  }
+}
