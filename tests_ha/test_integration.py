@@ -1,6 +1,7 @@
 """Tests against actual HA classes in Linux CI; no live credentials."""
 
 import unittest
+from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -11,9 +12,43 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from custom_components.esk_net import async_setup_entry, async_unload_entry
 from custom_components.esk_net.config_flow import EskConfigFlow
 from custom_components.esk_net.coordinator import EskCoordinator
-from custom_components.esk_net.parser import AccountData, AuthenticationError, ParseError
+from custom_components.esk_net.parser import (
+    AccountData,
+    ActiveService,
+    AuthenticationError,
+    ParseError,
+)
+from custom_components.esk_net.sensor import SENSORS, EskSensor
 
 DATA = AccountData("001", Decimal("120.50"), 7, "PRO100", Decimal("537"))
+
+
+class SensorTests(unittest.TestCase):
+    def test_new_sensor_values_and_attributes(self):
+        data = replace(
+            DATA,
+            total_monthly_price=Decimal("950"),
+            active_services=(ActiveService("Test service", Decimal("400")),),
+        )
+        coordinator = Mock(data=data, account="001")
+        sensors = {d.key: EskSensor(coordinator, d) for d in SENSORS}
+        self.assertEqual(sensors["total_monthly_price"].native_value, Decimal("950"))
+        self.assertEqual(sensors["tariff_price"].native_value, Decimal("537"))
+        self.assertEqual(sensors["active_services"].native_value, 1)
+        self.assertEqual(
+            sensors["active_services"].extra_state_attributes,
+            {"services": [{"name": "Test service", "monthly_price": 400.0}], "currency": "RUB"},
+        )
+        coordinator.data = DATA
+        self.assertIsNone(sensors["active_services"].native_value)
+        self.assertIsNone(sensors["active_services"].extra_state_attributes["services"])
+        self.assertIsNone(sensors["total_monthly_price"].native_value)
+
+    def test_empty_services(self):
+        coordinator = Mock(data=replace(DATA, active_services=()), account="001")
+        sensor = EskSensor(coordinator, next(d for d in SENSORS if d.key == "active_services"))
+        self.assertEqual(sensor.native_value, 0)
+        self.assertEqual(sensor.extra_state_attributes["services"], [])
 
 
 class FlowTests(unittest.IsolatedAsyncioTestCase):

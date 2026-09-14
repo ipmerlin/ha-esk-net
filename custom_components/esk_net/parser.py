@@ -80,12 +80,75 @@ class Document(HTMLParser):
 
 
 @dataclass(frozen=True)
+class ActiveService:
+    name: str
+    monthly_price: Decimal | None
+
+
+@dataclass(frozen=True)
 class AccountData:
     account: str
     balance: Decimal
     days_left: int | None
     tariff: str | None
     tariff_price: Decimal | None
+    total_monthly_price: Decimal | None = None
+    active_services: tuple[ActiveService, ...] | None = None
+
+
+def has_class(node: Node, name: str) -> bool:
+    return name in (node.attrs.get("class") or "").split()
+
+
+def parse_tariff_info(html: str) -> tuple[Decimal | None, tuple[ActiveService, ...] | None]:
+    """Read the authoritative total and the activated section of tariff_info.jsp."""
+    nodes = list(Document(html).root.walk())
+    if any(n.tag == "input" and (n.attrs.get("type") or "").lower() == "password" for n in nodes):
+        raise AuthenticationError("Cabinet requires authentication")
+    total = None
+    for node in nodes:
+        if has_class(node, "base-payment"):
+            total = next(
+                (
+                    value
+                    for child in node.walk()
+                    if child.tag == "strong" and (value := number(child.text)) is not None
+                ),
+                None,
+            )
+            break
+
+    # Only a service-list following the activated-services heading is authoritative.
+    # Other lists may advertise services which have not been activated.
+    listing = None
+    for parent in nodes:
+        children = [c for c in parent.children if isinstance(c, Node)]
+        for index, child in enumerate(children[:-1]):
+            if (
+                child.tag in {"h1", "h2", "h3", "h4", "h5", "h6"}
+                and (" ".join(child.text.split()).rstrip(":").casefold() == "активированные услуги")
+                and has_class(children[index + 1], "service-list")
+            ):
+                listing = children[index + 1]
+                break
+        if listing is not None:
+            break
+    if listing is None:
+        return total, None
+    services = []
+    for item in listing.walk():
+        if not has_class(item, "service-item"):
+            continue
+        title = next(
+            (" ".join(n.text.split()) for n in item.walk() if has_class(n, "serv-itm-title")), ""
+        )
+        if not title:
+            return total, None  # Do not report a misleading partial count.
+        price = next((number(n.text) for n in item.walk() if has_class(n, "serv-itm-price")), None)
+        services.append(ActiveService(title, price))
+    if not services and listing.text.strip():
+        return total, None  # Unknown replacement markup is not an empty list.
+    return total, tuple(services)
 
 
 def number(text):

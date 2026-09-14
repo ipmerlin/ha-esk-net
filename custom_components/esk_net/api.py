@@ -2,13 +2,21 @@
 
 import asyncio
 import re
+from dataclasses import replace
 from urllib.parse import quote, unquote, urlencode, urljoin, urlsplit
 
 from aiohttp import ClientError, ClientSession
 from yarl import URL
 
 from .const import BASE_URL
-from .parser import AccountData, AuthenticationError, EskError, ParseError, parse_account
+from .parser import (
+    AccountData,
+    AuthenticationError,
+    EskError,
+    ParseError,
+    parse_account,
+    parse_tariff_info,
+)
 
 
 class CannotConnect(EskError):
@@ -76,9 +84,24 @@ class EskClient:
                     return raw.decode("cp1251", errors="replace")
         raise CannotConnect("Too many redirects")
 
+    async def _page(self, path):
+        html = await self._request("GET", f"{BASE_URL}{path}")
+        for _ in range(2):
+            challenge = challenge_target(html)
+            if challenge is None:
+                return html
+            target, cookie = challenge
+            self.session.cookie_jar.update_cookies(
+                {"rs_pending": cookie}, response_url=URL(BASE_URL)
+            )
+            html = await self._request("GET", target)
+        if challenge_target(html) is not None:
+            raise ParseError("Cabinet challenge was not resolved")
+        return html
+
     async def async_fetch(self) -> AccountData:
         try:
-            async with asyncio.timeout(60):
+            async with asyncio.timeout(90):
                 await self._request(
                     "POST",
                     f"{BASE_URL}/ajax/login.jsp",
@@ -88,18 +111,13 @@ class EskClient:
                         "owner": "ENET",
                     },
                 )
-                html = await self._request("GET", f"{BASE_URL}/index.jsp")
-                for _ in range(2):
-                    challenge = challenge_target(html)
-                    if challenge is None:
-                        break
-                    target, cookie = challenge
-                    self.session.cookie_jar.update_cookies(
-                        {"rs_pending": cookie}, response_url=URL(BASE_URL)
-                    )
-                    html = await self._request("GET", target)
-                if challenge_target(html) is not None:
-                    raise ParseError("Cabinet challenge was not resolved")
-                return parse_account(html)
+                data = parse_account(await self._page("/index.jsp"))
+                try:
+                    async with asyncio.timeout(30):
+                        total, services = parse_tariff_info(await self._page("/tariff_info.jsp"))
+                except (CannotConnect, ParseError, ClientError, TimeoutError):
+                    # An optional page failure must not hide a fresh balance or keep stale prices.
+                    return data
+                return replace(data, total_monthly_price=total, active_services=services)
         except (ClientError, TimeoutError) as err:
             raise CannotConnect("Could not reach ESK cabinet") from err

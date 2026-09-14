@@ -8,9 +8,25 @@ ROOT = Path(__file__).resolve().parents[1] / "custom_components/esk_net"
 
 def translation(ru):
     names = (
-        ["Баланс", "Дней до блокировки", "Тариф", "Стоимость тарифа в месяц", "Лицевой счёт"]
+        [
+            "Баланс",
+            "Дней до блокировки",
+            "Тариф",
+            "Стоимость тарифа в месяц",
+            "Лицевой счёт",
+            "Полная стоимость в месяц",
+            "Активированные услуги",
+        ]
         if ru
-        else ["Balance", "Days until blocking", "Tariff", "Monthly tariff price", "Account number"]
+        else [
+            "Balance",
+            "Days until blocking",
+            "Tariff",
+            "Monthly tariff price",
+            "Account number",
+            "Total monthly price",
+            "Active services",
+        ]
     )
     credentials = {
         "username": "Логин" if ru else "Username",
@@ -77,7 +93,15 @@ def translation(ru):
             "sensor": {
                 key: {"name": name}
                 for key, name in zip(
-                    ("balance", "days_left", "tariff", "tariff_price", "account"),
+                    (
+                        "balance",
+                        "days_left",
+                        "tariff",
+                        "tariff_price",
+                        "account",
+                        "total_monthly_price",
+                        "active_services",
+                    ),
                     names,
                     strict=True,
                 )

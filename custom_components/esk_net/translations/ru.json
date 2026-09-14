@@ -57,6 +57,12 @@
       },
       "account": {
         "name": "Лицевой счёт"
+      },
+      "total_monthly_price": {
+        "name": "Полная стоимость в месяц"
+      },
+      "active_services": {
+        "name": "Активированные услуги"
       }
     }
   }

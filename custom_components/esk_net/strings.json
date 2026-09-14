@@ -57,6 +57,12 @@
       },
       "account": {
         "name": "Account number"
+      },
+      "total_monthly_price": {
+        "name": "Total monthly price"
+      },
+      "active_services": {
+        "name": "Active services"
       }
     }
   }

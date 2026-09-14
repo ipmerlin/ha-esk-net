@@ -37,6 +37,18 @@ SENSORS = (
         device_class=SensorDeviceClass.MONETARY,
     ),
     SensorEntityDescription(key="account", translation_key="account", icon="mdi:identifier"),
+    SensorEntityDescription(
+        key="total_monthly_price",
+        translation_key="total_monthly_price",
+        icon="mdi:cash-multiple",
+        native_unit_of_measurement="RUB",
+        device_class=SensorDeviceClass.MONETARY,
+    ),
+    SensorEntityDescription(
+        key="active_services",
+        translation_key="active_services",
+        icon="mdi:format-list-bulleted",
+    ),
 )
 
 
@@ -62,10 +74,29 @@ class EskSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
+        if self.entity_description.key == "active_services":
+            services = self.coordinator.data.active_services
+            return len(services) if services is not None else None
         return getattr(self.coordinator.data, self.entity_description.key)
 
     @property
     def extra_state_attributes(self):
+        if self.entity_description.key == "active_services":
+            services = self.coordinator.data.active_services
+            return {
+                "services": [
+                    {
+                        "name": service.name,
+                        "monthly_price": float(service.monthly_price)
+                        if service.monthly_price is not None
+                        else None,
+                    }
+                    for service in services
+                ]
+                if services is not None
+                else None,
+                "currency": "RUB",
+            }
         if self.entity_description.key == "tariff":
             price = self.coordinator.data.tariff_price
             return {"monthly_price": str(price) if price is not None else None, "currency": "RUB"}

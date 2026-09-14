@@ -10,7 +10,14 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "last_update_success": coordinator.last_update_success,
         "available_fields": [
             key
-            for key in ("balance", "days_left", "tariff", "tariff_price")
+            for key in (
+                "balance",
+                "days_left",
+                "tariff",
+                "tariff_price",
+                "total_monthly_price",
+                "active_services",
+            )
             if coordinator.data and getattr(coordinator.data, key) is not None
         ],
     }

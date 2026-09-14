@@ -24,13 +24,58 @@ for module in ("const", "parser", "api"):
     spec.loader.exec_module(loaded)
 
 from esk_test_client.api import CannotConnect, EskClient, challenge_target  # noqa: E402
-from esk_test_client.parser import AuthenticationError, ParseError, parse_account  # noqa: E402
+from esk_test_client.parser import (  # noqa: E402
+    AuthenticationError,
+    ParseError,
+    parse_account,
+    parse_tariff_info,
+)
 
 HTML = (ROOT / "tests/fixtures/account.html").read_text(encoding="utf-8")
+TARIFF_HTML = (ROOT / "tests/fixtures/tariff_info.html").read_text(encoding="utf-8")
 CHALLENGE = "var rs_ifr='/check'; var rs_uri='abc123';"
 
 
 class ParserTests(unittest.TestCase):
+    def test_total_and_services(self):
+        total, services = parse_tariff_info(TARIFF_HTML)
+        self.assertEqual(total, Decimal("950"))
+        self.assertEqual(len(services), 1)
+        self.assertEqual(services[0].name, "Дополнительная услуга")
+        self.assertEqual(services[0].monthly_price, Decimal("400"))
+
+    def test_total_is_not_summed_from_service_prices(self):
+        total, services = parse_tariff_info(TARIFF_HTML.replace("950 руб/мес", "875,50 руб/мес"))
+        self.assertEqual(total, Decimal("875.50"))
+        self.assertEqual(services[0].monthly_price, Decimal("400"))
+
+    def test_absent_service_page_is_unknown(self):
+        self.assertEqual(parse_tariff_info("<h1>Технические работы</h1>"), (None, None))
+
+    def test_empty_activated_list_is_zero_services(self):
+        self.assertEqual(
+            parse_tariff_info('<h4>Активированные услуги:</h4><div class="service-list"></div>'),
+            (None, ()),
+        )
+
+    def test_available_services_are_not_activated(self):
+        self.assertIsNone(
+            parse_tariff_info(TARIFF_HTML.replace("Активированные услуги:", "Доступные услуги:"))[1]
+        )
+
+    def test_unknown_price_and_multiple_services(self):
+        page = TARIFF_HTML.replace(
+            "</div>\n</div>",
+            '</div><div class="service-item"><div class="serv-itm-title">Услуга 2</div><div class="serv-itm-price">По запросу</div></div>\n</div>',
+        )
+        services = parse_tariff_info(page)[1]
+        self.assertEqual(len(services), 2)
+        self.assertIsNone(services[1].monthly_price)
+
+    def test_service_login_page_is_auth_error(self):
+        with self.assertRaises(AuthenticationError):
+            parse_tariff_info('<input type="password">')
+
     def test_all_fields_and_russian_numbers(self):
         data = parse_account(HTML)
         self.assertEqual(data.account, "00123456")
@@ -113,19 +158,45 @@ class Session:
 
 
 class ClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_optional_page_failure_preserves_balance(self):
+        for failure in (Response(status=500), TimeoutError(), Response("<h1>Unavailable</h1>")):
+            with self.subTest(failure=type(failure).__name__):
+                result = await EskClient(
+                    Session(Response(), Response(HTML), failure), "test", "secret"
+                ).async_fetch()
+                self.assertEqual(result.balance, Decimal("-1234.50"))
+                self.assertIsNone(result.total_monthly_price)
+                self.assertIsNone(result.active_services)
+
+    async def test_optional_page_auth_failure_is_not_hidden(self):
+        with self.assertRaises(AuthenticationError):
+            await EskClient(
+                Session(Response(), Response(HTML), Response('<input type="password">')),
+                "test",
+                "secret",
+            ).async_fetch()
+
+    async def test_service_page_challenge(self):
+        session = Session(Response(), Response(HTML), Response(CHALLENGE), Response(TARIFF_HTML))
+        result = await EskClient(session, "test", "secret").async_fetch()
+        self.assertEqual(result.total_monthly_price, Decimal("950"))
+        self.assertEqual(session.calls[2][1], "https://lk.esknet.net/tariff_info.jsp")
+
     async def test_login_then_fetch(self):
-        session = Session(Response(), Response(HTML))
+        session = Session(Response(), Response(HTML), Response(TARIFF_HTML))
         result = await EskClient(session, "test", "secret").async_fetch()
         self.assertEqual(result.account, "00123456")
+        self.assertEqual(result.total_monthly_price, Decimal("950"))
+        self.assertEqual(len(result.active_services), 1)
         self.assertEqual(
             session.calls[0][2]["data"], {"login": "test", "password": "secret", "owner": "ENET"}
         )
 
     async def test_challenge_sets_cookie(self):
-        session = Session(Response(), Response(CHALLENGE), Response(HTML))
+        session = Session(Response(), Response(CHALLENGE), Response(HTML), Response(TARIFF_HTML))
         result = await EskClient(session, "test", "secret").async_fetch()
         self.assertEqual(result.balance, Decimal("-1234.50"))
-        self.assertEqual(session.calls[-1][1], "https://lk.esknet.net/check?rs_uri=abc123")
+        self.assertEqual(session.calls[-2][1], "https://lk.esknet.net/check?rs_uri=abc123")
         cookies = session.cookie_jar.filter_cookies(URL("https://lk.esknet.net/"))
         self.assertEqual(cookies["rs_pending"].value, "/check%3Frs_uri%3Dabc123")
 
@@ -143,7 +214,10 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_same_origin_redirect_uses_get(self):
         session = Session(
-            Response(status=302, headers={"Location": "/welcome"}), Response(), Response(HTML)
+            Response(status=302, headers={"Location": "/welcome"}),
+            Response(),
+            Response(HTML),
+            Response(TARIFF_HTML),
         )
         await EskClient(session, "test", "secret").async_fetch()
         self.assertEqual(session.calls[1][0], "GET")
@@ -172,13 +246,15 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_utf8_response(self):
         result = await EskClient(
-            Session(Response(), Response(HTML, charset="utf-8")), "test", "secret"
+            Session(Response(), Response(HTML, charset="utf-8"), Response(TARIFF_HTML)),
+            "test",
+            "secret",
         ).async_fetch()
         self.assertEqual(result.tariff, "PRO100")
 
     async def test_cookies_are_not_shared(self):
-        first = Session(Response(), Response(CHALLENGE), Response(HTML))
-        second = Session(Response(), Response(HTML))
+        first = Session(Response(), Response(CHALLENGE), Response(HTML), Response(TARIFF_HTML))
+        second = Session(Response(), Response(HTML), Response(TARIFF_HTML))
         await EskClient(first, "one", "secret").async_fetch()
         await EskClient(second, "two", "secret").async_fetch()
         self.assertEqual(len(second.cookie_jar), 0)
