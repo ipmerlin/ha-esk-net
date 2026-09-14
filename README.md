@@ -41,7 +41,7 @@
 
 ## Ручная установка
 
-Скопируйте каталог `custom_components/esk_net` в `/config/custom_components/esk_net` на сервере HA, перезапустите HA и добавьте интеграцию через интерфейс. Если используете архив [esk_net-0.1.0.zip](https://github.com/ipmerlin/ha-esk-net/releases/download/v0.1.0/esk_net-0.1.0.zip), распакуйте его в `/config`: внутри уже есть `custom_components/esk_net`.
+Скопируйте каталог `custom_components/esk_net` в `/config/custom_components/esk_net` на сервере HA, перезапустите HA и добавьте интеграцию через интерфейс. Если используете архив [esk_net-0.1.1.zip](https://github.com/ipmerlin/ha-esk-net/releases/download/v0.1.1/esk_net-0.1.1.zip), распакуйте его в `/config`: внутри уже есть `custom_components/esk_net`.
 
 ## Обновление и диагностика
 
