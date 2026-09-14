@@ -18,6 +18,18 @@
 
 Репозиторий: [ipmerlin/ha-esk-net](https://github.com/ipmerlin/ha-esk-net).
 
+**1. Откройте репозиторий в HACS и скачайте интеграцию:**
+
+[![Открыть в HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ipmerlin&repository=ha-esk-net&category=integration)
+
+**2. Перезапустите Home Assistant, затем добавьте ЕСК:**
+
+[![Добавить интеграцию в Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=esk_net)
+
+Кнопки используют [My Home Assistant](https://www.home-assistant.io/integrations/my/). При первом переходе укажите адрес вашего HA. Для первой кнопки HACS должен быть установлен; вторую используйте после скачивания интеграции и перезапуска HA.
+
+Можно установить вручную через интерфейс HACS:
+
 1. В HACS откройте меню → **Пользовательские репозитории**.
 2. Добавьте `https://github.com/ipmerlin/ha-esk-net`, тип **Интеграция**.
 3. Найдите **ЕСК — личный кабинет** и скачайте.
