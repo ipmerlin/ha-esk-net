@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import CONF_ACCOUNT, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL, DOMAIN
 from .parser import AuthenticationError, EskError
+from .payment import SbpPayment
 
 
 class EskCoordinator(DataUpdateCoordinator):
@@ -24,6 +25,7 @@ class EskCoordinator(DataUpdateCoordinator):
         )
         self.client = client
         self.account = entry.data[CONF_ACCOUNT]
+        self.payment = SbpPayment(hass, entry, client, self.account)
 
     async def _async_update_data(self):
         try:

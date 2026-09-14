@@ -42,6 +42,21 @@
     }
   },
   "entity": {
+    "number": {
+      "sbp_amount": {
+        "name": "SBP top-up amount"
+      }
+    },
+    "button": {
+      "sbp_generate": {
+        "name": "Generate SBP QR"
+      }
+    },
+    "image": {
+      "sbp_qr": {
+        "name": "SBP payment QR"
+      }
+    },
     "sensor": {
       "balance": {
         "name": "Balance"

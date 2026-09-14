@@ -42,6 +42,21 @@
     }
   },
   "entity": {
+    "number": {
+      "sbp_amount": {
+        "name": "Сумма пополнения СБП"
+      }
+    },
+    "button": {
+      "sbp_generate": {
+        "name": "Получить QR СБП"
+      }
+    },
+    "image": {
+      "sbp_qr": {
+        "name": "QR для оплаты СБП"
+      }
+    },
     "sensor": {
       "balance": {
         "name": "Баланс"

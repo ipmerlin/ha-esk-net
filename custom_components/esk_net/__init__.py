@@ -6,7 +6,7 @@ from .api import EskClient
 from .coordinator import EskCoordinator
 from .session import create_session
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.NUMBER, Platform.BUTTON, Platform.IMAGE]
 
 
 async def async_setup_entry(hass, entry):

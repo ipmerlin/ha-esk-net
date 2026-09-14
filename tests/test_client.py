@@ -1,5 +1,6 @@
 """Offline protocol tests using synthetic cabinet HTML, without importing HA."""
 
+import base64
 import importlib.util
 import sys
 import types
@@ -34,6 +35,58 @@ from esk_test_client.parser import (  # noqa: E402
 HTML = (ROOT / "tests/fixtures/account.html").read_text(encoding="utf-8")
 TARIFF_HTML = (ROOT / "tests/fixtures/tariff_info.html").read_text(encoding="utf-8")
 CHALLENGE = "var rs_ifr='/check'; var rs_uri='abc123';"
+PNG_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
+from esk_test_client.sbp import SbpError, decode_qr, validate_amount  # noqa: E402
+
+
+class SbpTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_qr_request_and_bytes(self):
+        session = Session(Response(), Response(HTML), Response(PNG_BASE64))
+        qr = await EskClient(session, "test", "secret").async_generate_qr(10, "00123456")
+        self.assertEqual(qr, base64.b64decode(PNG_BASE64))
+        self.assertEqual(
+            session.calls[-1][0:2], ("GET", "https://lk.esknet.net/ajax/sbp.jsp?payment=10")
+        )
+        self.assertEqual(len(session.calls), 3)
+
+    async def test_invalid_amount_never_requests(self):
+        for amount in (9, -10, 10.1, 100001, "NaN", "Infinity", True, "bad"):
+            session = Session()
+            with self.subTest(amount=amount), self.assertRaises(SbpError):
+                await EskClient(session, "test", "secret").async_generate_qr(amount, "00123456")
+            self.assertEqual(session.calls, [])
+        self.assertEqual(validate_amount("1001"), 1001)
+
+    async def test_wrong_account_never_requests_qr(self):
+        session = Session(Response(), Response(HTML))
+        with self.assertRaises(AuthenticationError):
+            await EskClient(session, "test", "secret").async_generate_qr(10, "different")
+        self.assertEqual(len(session.calls), 2)
+
+    async def test_failed_qr_not_retried(self):
+        for error in (
+            TimeoutError(),
+            Response(status=500),
+            Response(status=302, headers={"Location": "/index.jsp"}),
+        ):
+            session = Session(Response(), Response(HTML), error)
+            with self.subTest(error=type(error).__name__), self.assertRaises(CannotConnect):
+                await EskClient(session, "test", "secret").async_generate_qr(10, "00123456")
+            self.assertEqual(len(session.calls), 3)
+
+    async def test_non_png_and_malformed_response(self):
+        for body in (
+            "<html>Login</html>",
+            "not base64",
+            base64.b64encode(b"hello").decode(),
+            PNG_BASE64[:-12],
+            "a" * 2000001,
+        ):
+            with self.subTest(size=len(body)), self.assertRaises(SbpError):
+                decode_qr(body)
 
 
 class ParserTests(unittest.TestCase):

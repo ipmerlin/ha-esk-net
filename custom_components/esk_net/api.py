@@ -17,6 +17,7 @@ from .parser import (
     parse_account,
     parse_tariff_info,
 )
+from .sbp import decode_qr, validate_amount
 
 
 class CannotConnect(EskError):
@@ -44,8 +45,9 @@ class EskClient:
         self.session = session
         self.username = username
         self.password = password
+        self._lock = asyncio.Lock()
 
-    async def _request(self, method, url, **kwargs):
+    async def _request(self, method, url, *, follow_redirects=True, **kwargs):
         # Follow redirects ourselves to keep credentials/cookies on the expected origin.
         for _ in range(5):
             async with self.session.request(
@@ -59,6 +61,8 @@ class EskClient:
                 **kwargs,
             ) as response:
                 if response.status in {301, 302, 303, 307, 308}:
+                    if not follow_redirects:
+                        raise CannotConnect("Unexpected redirect while generating QR")
                     location = response.headers.get("Location")
                     if not location:
                         raise CannotConnect("Redirect without location")
@@ -100,6 +104,31 @@ class EskClient:
         return html
 
     async def async_fetch(self) -> AccountData:
+        async with self._lock:
+            return await self._fetch()
+
+    async def async_generate_qr(self, amount, expected_account: str) -> bytes:
+        amount = validate_amount(amount)
+        async with self._lock:
+            try:
+                async with asyncio.timeout(60):
+                    await self._request(
+                        "POST",
+                        f"{BASE_URL}/ajax/login.jsp",
+                        data={"login": self.username, "password": self.password, "owner": "ENET"},
+                    )
+                    data = parse_account(await self._page("/index.jsp"))
+                    if data.account != expected_account:
+                        raise AuthenticationError("Account changed; check credentials")
+                    # Exactly one QR request. Do not retry an ambiguous response.
+                    response = await self._request(
+                        "GET", f"{BASE_URL}/ajax/sbp.jsp?payment={amount}", follow_redirects=False
+                    )
+                    return decode_qr(response)
+            except (ClientError, TimeoutError) as err:
+                raise CannotConnect("Could not obtain SBP QR") from err
+
+    async def _fetch(self) -> AccountData:
         try:
             async with asyncio.timeout(90):
                 await self._request(

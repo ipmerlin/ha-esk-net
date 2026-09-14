@@ -90,6 +90,11 @@ def translation(ru):
             }
         },
         "entity": {
+            "number": {
+                "sbp_amount": {"name": "Сумма пополнения СБП" if ru else "SBP top-up amount"}
+            },
+            "button": {"sbp_generate": {"name": "Получить QR СБП" if ru else "Generate SBP QR"}},
+            "image": {"sbp_qr": {"name": "QR для оплаты СБП" if ru else "SBP payment QR"}},
             "sensor": {
                 key: {"name": name}
                 for key, name in zip(
@@ -105,7 +110,7 @@ def translation(ru):
                     names,
                     strict=True,
                 )
-            }
+            },
         },
     }
 
