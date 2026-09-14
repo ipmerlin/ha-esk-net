@@ -39,9 +39,9 @@
 
 Автоматическое появление в общем каталоге HACS — отдельная процедура. Для установки из пользовательского репозитория она не требуется.
 
-## Ручная установка для первого испытания
+## Ручная установка
 
-Скопируйте каталог `custom_components/esk_net` в `/config/custom_components/esk_net` на сервере HA, перезапустите HA и добавьте интеграцию через интерфейс. Если используете подготовленный архив `esk_net-0.1.0.zip`, распакуйте его в `/config`: внутри уже есть `custom_components/esk_net`.
+Скопируйте каталог `custom_components/esk_net` в `/config/custom_components/esk_net` на сервере HA, перезапустите HA и добавьте интеграцию через интерфейс. Если используете архив [esk_net-0.1.0.zip](https://github.com/ipmerlin/ha-esk-net/releases/download/v0.1.0/esk_net-0.1.0.zip), распакуйте его в `/config`: внутри уже есть `custom_components/esk_net`.
 
 ## Обновление и диагностика
 
@@ -50,27 +50,3 @@
 `cannot_connect` означает сетевую ошибку/HTTP-ошибку, `invalid_auth` — отказ авторизации или возврат формы входа, `cannot_parse` — неожиданный HTML либо незавершённую проверку сайта. Изменение вёрстки не трактуется автоматически как неверный пароль.
 
 Пароль хранится стандартным механизмом config entries HA. Не размещайте `.storage`, пароли, cookie или выгруженные страницы ЛК в GitHub. Диагностику можно скачать из меню интеграции; исходный HTML интеграция не сохраняет и не журналирует.
-
-## Проверки и границы готовности
-
-Локальные тесты используют **синтетический HTML**, собранный по селекторам исходного скрипта, и подставные HTTP-ответы. Они не подтверждают вход в реальный ЛК. Полный запуск HA на этой Windows-машине не выполнялся. Перед стабильным релизом нужно проверить добавление, смену пароля, перезапуск, выгрузку и показания в настоящем HA.
-
-```shell
-python -m pip install -r requirements-dev.txt
-python -m unittest discover -s tests -p "test_*.py" -v
-python -m ruff check .
-python -m ruff format --check .
-```
-
-GitHub Actions запускает эти проверки, hassfest и отдельные тесты настройки, повторной авторизации, координатора и выгрузки на Home Assistant 2025.12. Проверка HACS запускается вручную. Изображение ЕСК находится в `brand/icon.png` и `brand/logo.png`; его отображение в HA поддерживается начиная с 2026.3. Подробнее: [локальные иконки интеграций](https://developers.home-assistant.io/docs/core/integration/brand_images/).
-
-## Публикация
-
-1. Используйте публичный GitHub-репозиторий `ipmerlin/ha-esk-net` с описанием и topics `home-assistant`, `hacs`, `esk-net`.
-2. Загружайте изменения проекта без `.venv`, `dist`, секретов и HTML своего кабинета.
-3. Дождитесь успешных GitHub Actions и запустите ручную проверку HACS.
-4. Испытайте интеграцию в HA; затем создайте release `v0.1.0`.
-
-Если название репозитория другое, измените `documentation` и `issue_tracker` в `manifest.json` и ссылки в README.
-
-Архитектура: [Config flow](https://developers.home-assistant.io/docs/core/integration/config_flow/), [DataUpdateCoordinator](https://developers.home-assistant.io/docs/integration_fetching_data/). Требования публикации: [HACS](https://www.hacs.dev/docs/publish/integration/).
