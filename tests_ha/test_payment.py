@@ -25,7 +25,7 @@ class PaymentTests(unittest.IsolatedAsyncioTestCase):
         number = SbpAmount(payment)
         await number.async_set_native_value(1001)
         self.assertEqual(number.native_value, 1001)
-        with patch("homeassistant.components.image.async_get_clientsession", return_value=Mock()):
+        with patch("homeassistant.components.image.get_async_client", return_value=Mock()):
             image = SbpImage(payment.hass, payment)
         self.assertIsNone(await image.async_image())
         self.assertFalse(image.available)

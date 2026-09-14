@@ -1,5 +1,6 @@
 """Parse the legacy ESK cabinet without inventing missing values."""
 
+import json
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -100,6 +101,26 @@ def has_class(node: Node, name: str) -> bool:
     return name in (node.attrs.get("class") or "").split()
 
 
+def total_with_subscriptions(base: Decimal | None, response: str) -> Decimal | None:
+    """Match tariff_info.jsp's final total: hidden sum plus assigned Megogo packages."""
+    try:
+        packages = json.loads(response)
+        if not isinstance(packages, list):
+            raise ValueError
+        extra = Decimal(0)
+        for package in packages:
+            if not isinstance(package, dict) or "assigned" not in package:
+                raise ValueError
+            if package["assigned"] == "Y":
+                price = Decimal(str(package["cost"]))
+                if not price.is_finite() or price < 0:
+                    raise ValueError
+                extra += price
+        return base + extra if base is not None else None
+    except (ValueError, KeyError, InvalidOperation) as err:
+        raise ParseError("Invalid subscription cost response") from err
+
+
 def parse_tariff_info(html: str) -> tuple[Decimal | None, tuple[ActiveService, ...] | None]:
     """Read the authoritative total and the activated section of tariff_info.jsp."""
     nodes = list(Document(html).root.walk())
@@ -116,6 +137,11 @@ def parse_tariff_info(html: str) -> tuple[Decimal | None, tuple[ActiveService, .
                 ),
                 None,
             )
+            if total is None:
+                total = next(
+                    (number(child.text) for child in node.walk() if child.attrs.get("id") == "sum"),
+                    None,
+                )
             break
 
     # Only a service-list following the activated-services heading is authoritative.

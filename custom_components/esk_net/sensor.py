@@ -1,5 +1,8 @@
 """Read-only ESK cabinet sensors."""
 
+from collections import Counter
+from hashlib import sha256
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -54,6 +57,52 @@ SENSORS = (
 
 async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(EskSensor(entry.runtime_data, description) for description in SENSORS)
+    known = set()
+
+    def discover_services():
+        new = []
+        for key, service in service_map(entry.runtime_data.data).items():
+            if key not in known:
+                known.add(key)
+                new.append(EskServiceSensor(entry.runtime_data, key, service.name))
+        if new:
+            async_add_entities(new)
+
+    discover_services()
+    entry.async_on_unload(entry.runtime_data.async_add_listener(discover_services))
+
+
+def service_map(data):
+    counts = Counter()
+    result = {}
+    for service in data.active_services or ():
+        digest = sha256(service.name.encode()).hexdigest()[:24]
+        counts[digest] += 1
+        result[f"{digest}_{counts[digest]}"] = service
+    return result
+
+
+class EskServiceSensor(CoordinatorEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:tag-outline"
+    _attr_native_unit_of_measurement = "RUB"
+    _attr_device_class = SensorDeviceClass.MONETARY
+
+    def __init__(self, coordinator, key, name):
+        super().__init__(coordinator)
+        self.service_key = key
+        self._attr_name = name
+        self._attr_unique_id = f"{coordinator.account}_service_{key}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, coordinator.account)})
+
+    @property
+    def available(self):
+        return super().available and self.service_key in service_map(self.coordinator.data)
+
+    @property
+    def native_value(self):
+        service = service_map(self.coordinator.data).get(self.service_key)
+        return service.monthly_price if service is not None else None
 
 
 class EskSensor(CoordinatorEntity, SensorEntity):

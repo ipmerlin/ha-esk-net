@@ -18,12 +18,32 @@ from custom_components.esk_net.parser import (
     AuthenticationError,
     ParseError,
 )
-from custom_components.esk_net.sensor import SENSORS, EskSensor
+from custom_components.esk_net.sensor import SENSORS, EskSensor, EskServiceSensor, service_map
+from custom_components.esk_net.sensor import async_setup_entry as setup_sensors
 
 DATA = AccountData("001", Decimal("120.50"), 7, "PRO100", Decimal("537"))
 
 
 class SensorTests(unittest.TestCase):
+    def test_individual_service_price_and_removal(self):
+        coordinator = Mock(
+            data=replace(DATA, active_services=(ActiveService("External IP", Decimal("400")),)),
+            account="001",
+            last_update_success=True,
+        )
+        key = next(iter(service_map(coordinator.data)))
+        sensor = EskServiceSensor(coordinator, key, "External IP")
+        self.assertEqual(sensor.name, "External IP")
+        self.assertEqual(sensor.native_value, Decimal("400"))
+        self.assertTrue(sensor.available)
+        coordinator.data = replace(
+            DATA, active_services=(ActiveService("External IP", Decimal("450")),)
+        )
+        self.assertEqual(sensor.native_value, Decimal("450"))
+        coordinator.data = replace(DATA, active_services=())
+        self.assertIsNone(sensor.native_value)
+        self.assertFalse(sensor.available)
+
     def test_new_sensor_values_and_attributes(self):
         data = replace(
             DATA,
@@ -97,6 +117,21 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
 
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_services_discovered_after_setup(self):
+        coordinator = Mock(data=DATA, account="001")
+        entry = Mock(runtime_data=coordinator)
+        add = Mock()
+        await setup_sensors(Mock(), entry, add)
+        add.reset_mock()
+        coordinator.data = replace(
+            DATA, active_services=(ActiveService("External IP", Decimal("400")),)
+        )
+        listener = coordinator.async_add_listener.call_args.args[0]
+        listener()
+        self.assertEqual(add.call_args.args[0][0].name, "External IP")
+        listener()
+        add.assert_called_once()
+
     async def test_setup_failure_detaches_session(self):
         session = Mock()
         entry = Mock(data={"username": "login", "password": "secret"})

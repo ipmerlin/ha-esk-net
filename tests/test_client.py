@@ -90,6 +90,10 @@ class SbpTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ParserTests(unittest.TestCase):
+    def test_total_before_javascript_runs(self):
+        page = TARIFF_HTML.replace("950 руб/мес", "... руб/мес")
+        self.assertEqual(parse_tariff_info(page)[0], Decimal("950"))
+
     def test_total_and_services(self):
         total, services = parse_tariff_info(TARIFF_HTML)
         self.assertEqual(total, Decimal("950"))
@@ -211,6 +215,45 @@ class Session:
 
 
 class ClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_total_with_dynamic_subscriptions(self):
+        page = (
+            TARIFF_HTML.replace("950 руб/мес", "... руб/мес")
+            + "<script>url: 'ajax/megogo_packages.jsp'</script>"
+        )
+        session = Session(
+            Response(),
+            Response(HTML),
+            Response(page),
+            Response('[{"assigned":"Y","cost":"50.25"},{"assigned":"N","cost":900}]'),
+        )
+        result = await EskClient(session, "test", "secret").async_fetch()
+        self.assertEqual(result.total_monthly_price, Decimal("1000.25"))
+        self.assertEqual(session.calls[-1][1], "https://lk.esknet.net/ajax/megogo_packages.jsp")
+
+    async def test_total_no_dynamic_subscriptions(self):
+        page = (
+            TARIFF_HTML.replace("950 руб/мес", "... руб/мес")
+            + "<script>url: 'ajax/megogo_packages.jsp'</script>"
+        )
+        result = await EskClient(
+            Session(Response(), Response(HTML), Response(page), Response("[]")), "test", "secret"
+        ).async_fetch()
+        self.assertEqual(result.total_monthly_price, Decimal("950"))
+
+    async def test_subscription_failure_preserves_services_not_partial_total(self):
+        page = TARIFF_HTML + "<script>url: 'ajax/megogo_packages.jsp'</script>"
+        for response in (
+            Response(status=500),
+            Response("{}"),
+            Response('[{"assigned":"Y","cost":"bad"}]'),
+            Response("<html>Login</html>"),
+        ):
+            result = await EskClient(
+                Session(Response(), Response(HTML), Response(page), response), "test", "secret"
+            ).async_fetch()
+            self.assertIsNone(result.total_monthly_price)
+            self.assertEqual(len(result.active_services), 1)
+
     async def test_optional_page_failure_preserves_balance(self):
         for failure in (Response(status=500), TimeoutError(), Response("<h1>Unavailable</h1>")):
             with self.subTest(failure=type(failure).__name__):

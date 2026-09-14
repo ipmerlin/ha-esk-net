@@ -16,6 +16,7 @@ from .parser import (
     ParseError,
     parse_account,
     parse_tariff_info,
+    total_with_subscriptions,
 )
 from .sbp import decode_qr, validate_amount
 
@@ -143,10 +144,20 @@ class EskClient:
                 data = parse_account(await self._page("/index.jsp"))
                 try:
                     async with asyncio.timeout(30):
-                        total, services = parse_tariff_info(await self._page("/tariff_info.jsp"))
+                        tariff_html = await self._page("/tariff_info.jsp")
+                        total, services = parse_tariff_info(tariff_html)
                 except (CannotConnect, ParseError, ClientError, TimeoutError):
                     # An optional page failure must not hide a fresh balance or keep stale prices.
                     return data
+                if "ajax/megogo_packages.jsp" in tariff_html:
+                    try:
+                        async with asyncio.timeout(15):
+                            total = total_with_subscriptions(
+                                total,
+                                await self._request("GET", f"{BASE_URL}/ajax/megogo_packages.jsp"),
+                            )
+                    except (CannotConnect, ParseError, ClientError, TimeoutError):
+                        total = None  # Never under-report a total when subscriptions are unknown.
                 return replace(data, total_monthly_price=total, active_services=services)
         except (ClientError, TimeoutError) as err:
             raise CannotConnect("Could not reach ESK cabinet") from err
